@@ -1,0 +1,69 @@
+---
+title: "R and RStudio Refresher"
+author: "Alejandra Madrid"
+date: "1/20/2021"
+output: word_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Task 1
+
+```{r Loading Packages}
+library(tidyverse)
+library(ggplot2)
+```
+
+#Task 2
+
+```{r}
+diamonddata=diamonds
+```
+
+#Task 3
+```{r}
+ggplot(diamonddata, aes(carat,price)) +
+geom_point()  
+```
+  **From this chart, we can observe that the price of a diamond increases as the size of the carat increases.**
+
+#Task 4
+```{r}
+ggplot(diamonddata, aes(carat, price, color=cut)) +
+  geom_point()  
+```
+  **From this chart, we can determine only one thing. Cut isnt indicative of price or carat. We can see the ideal cut is all over the chart, from a small carat, to a low price. We can also conclude that bigger carat does not necessarily mean better, as the bigger the carat the more likely it is that it will  fair cut.**
+  
+  # Task 5
+```{r}
+ggplot(diamonddata, aes(carat,price, color=cut)) +
+  geom_point() +
+  facet_wrap(~ color)  
+```
+  **This chart demonstrates the different prices and carat sizes there are within each color diamond. For example, that H, I, and J have bigger carat sizes and their distribution spread further. While the other call seem to be mostly carat size 3 or less.**
+
+#Task 6 - 8 
+```{r}
+InventoryData <- read_csv("InventoryData.csv")
+inventoryA <- InventoryData %>%
+  filter(Supplier =="A")
+
+inventoryA =mutate(inventoryA, OnHandRatio =`On Hand`/`Annual Demand`)
+```
+  **There are 3,695 rows.**  
+**The mutate verb creates another variable/column named "OnHandRatio, that is determined by the "on Hand" divided by "Annual Demand".** 
+
+#Task 9 
+```{r}
+avg_cost <- inventoryA %>%
+  group_by(`Item SKU`) %>%
+  summarize(SKUAvgCost = mean(`Cost per Unit ($)`))
+```
+
+#Task 10
+
+**To me, task 9 was the hardest. It required a lot more thinking than the previous exercises. It was alot of fun, and very helpful. I think moving forward I will be alot more prepared since this exercise helped me.**

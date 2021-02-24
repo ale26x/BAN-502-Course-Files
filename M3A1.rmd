@@ -1,0 +1,82 @@
+---
+output:
+  word_document: default
+  html_document: default
+editor_options:
+  chunk_output_type: console
+---
+```{r include= FALSE}
+library(tidyverse)
+library(lubridate)
+library(tidymodels)
+
+bike <- read_csv("bike_cleaned.csv")
+```
+
+
+```{r}
+bike = bike %>% mutate(dteday =mdy(dteday))
+bike = bike %>% mutate(season = as_factor(season))
+bike =bike %>%  mutate(mnth = as_factor(mnth)) 
+bike = bike %>% mutate(holiday = as_factor(holiday))
+bike = bike %>% mutate(weekday = as_factor(weekday))
+bike = bike %>% mutate (workingday = as_factor(workingday))
+bike = bike %>% mutate(weathersit = as_factor(weathersit))
+bike = bike %>% mutate(hr = as_factor (hr))
+
+```
+
+```{r}
+set.seed(1234)
+bike_split <- initial_split(bike, prob = .70, strata = count)
+Train = training(bike_split)
+Test=testing(bike_split)
+```
+
+* There are 4,343 rows of data in Testing Set.
+* There are 13.036 rows of data in training set. 
+
+```{r}
+bike_recipe <- recipe(count ~ season + mnth + hr + holiday + weekday + temp + weathersit, Train)
+
+lm_model = 
+  linear_reg() %>%
+  set_engine("lm")
+
+lm_wflow = 
+  workflow() %>%
+  add_model(lm_model) %>%
+  add_recipe(bike_recipe)
+
+lm_fit = fit  (lm_wflow, Train)
+
+summary(lm_fit$fit$fit$fit)
+
+
+```
+
+
+*Adjusted R quare is .6229. It appears as though certain days of the week would not have any significant impact on the bike use for the day.*   
+
+
+```{r}
+
+predict_train= predict(lm_fit,Train)
+```
+
+```{r}
+
+ggplot(predict_train, aes(.pred))+ 
+  geom_histogram() +
+  theme_bw()
+```
+
+
+```{r}
+lm_fit %>%
+  predict(Test) %>%
+  bind_cols(Test) %>%
+  metrics(truth = count, estimate = .pred)
+```
+
+*The R Square for the testing set is .623, this is very close to the rsq of the training set at .6243. This is an ideal model because it is not overfitting.*  

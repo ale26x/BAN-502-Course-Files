@@ -1,0 +1,280 @@
+---
+output:
+  word_document: default
+  html_document: default
+editor_options:
+  chunk_output_type: console
+---
+```{r}
+library(tidyverse)
+library(tidymodels)
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(rattle)
+library(RColorBrewer)
+```
+
+```{r Read in Data}
+parole <- read_csv("parole.csv")
+```
+
+```{r Recode and Rename}
+parole = parole %>%
+  mutate(male = as_factor(male)) %>%
+  mutate(race = as_factor(race)) %>%
+  mutate(state= as_factor(state)) %>%
+  mutate(crime = as_factor(crime)) %>%
+  mutate(multiple.offenses = as_factor(multiple.offenses)) %>%
+  mutate(violator = as_factor(violator))
+  
+  
+levels(parole$male) <- c("female", "male")
+levels(parole$race) <- c("white", "other")
+levels(parole$state) <- c("other", "KY", "LA", "VA")
+levels(parole$crime) <- c("Other", "larceny", "drug-related", "driving-related")
+levels(parole$multiple.offenses) <- c("no", "yes")
+levels(parole$violator) <- c("no", "yes")
+
+
+```
+
+### Task 1: Splitting Data
+
+```{r Split the data}
+set.seed(12345)
+parole_split = initial_split(parole, prop = .70, strata = violator)
+train = training(parole_split)
+test = testing(parole_split)
+
+```
+
+### Task 2: Classification Tree
+
+```{r classification tree}
+parole_recipe = recipe(violator ~. , train)
+
+tree_model = decision_tree() %>%
+  set_engine("rpart", model=TRUE) %>%
+  set_mode("classification")
+
+parole_wflow=
+  workflow() %>%
+  add_model(tree_model) %>%
+  add_recipe(parole_recipe)
+
+parole_fit = fit(parole_wflow, train)
+```
+
+```{r pluck the fit}
+tree = parole_fit %>%
+  pull_workflow_fit() %>%
+  pluck("fit")
+
+```
+
+
+```{r plot the tree}
+fancyRpartPlot(tree, tweak = 1.5)
+
+```
+
+#Task 3: Classification Example
+
+**a 40 year old from LA with a sentence of 10 years would be classified as a "non -violator" falling under the "no" classification. Fist, I looked at the at whether the person was from KY, VA, or other , the answer was no so I moved to the right. Next, is multiple offenses =no, the answer is no because he has committed multiple offenses so I moved to the right again. Next, is the max sentence less than 13 years? The answer is yes so I moved to the left. Finally, is the time served more than 2.6 years, the answer is yes again so i moved to the left, landing at "NO" where 4% of the data falls.**
+
+```{r Tasl 4: examine CP}
+parole_fit$fit$fit$fit$cptable
+```
+
+**The optimal cp values is an xerror 1.090909** 
+
+### Task 5: Tunning Grid
+
+```{r create folds}
+set.seed(123)
+folds= vfold_cv(train, v=5)
+
+```
+
+```{r tunning grid}
+parole_recipe2 = recipe(violator ~., train)
+  
+tree_model = decision_tree(cost_complexity = tune()) %>%
+  set_engine("rpart", model=TRUE) %>%
+  set_mode("classification")
+
+tree_grid = grid_regular(cost_complexity(),
+                         levels = 25)
+
+parole_wflow2 =
+  workflow() %>%
+  add_model(tree_model) %>%
+  add_recipe(parole_recipe2)
+
+tree_res = 
+  parole_wflow2 %>%
+  tune_grid(
+    resamples = folds,
+    grid = tree_grid
+  )
+
+tree_res
+
+```
+
+```{r task 5: copied code to graphically examine CP}
+tree_res %>%
+  collect_metrics() %>%
+  ggplot(aes(cost_complexity, mean)) +
+  geom_line(size = 1.5, alpha = .6) +
+  geom_point(size =2) +
+  facet_wrap(~ .metric, scales = "free", nrow = 2)
+```
+
+```{r task 6}
+best_tree = tree_res %>%
+  select_best("accuracy")
+
+best_tree
+```
+
+
+**.1 yields the optimal accuracy**   
+
+
+```{r task 7: finalize workflow}
+final_wf =
+  parole_wflow2 %>%
+  finalize_workflow(best_tree)
+```
+
+```{r task 7: pluck the fit and plot the tree}
+final_fit = fit(final_wf, train)
+
+tree = final_fit %>%
+  pull_workflow_fit() %>%
+  pluck("fit")
+
+#fancyRpartPlot(tree, tweak = 1.5)
+```
+
+**the accuracy of the root is is 88%**  
+
+### Task 9: Blood Dataset
+
+```{r Task 9 a: read in data and recode}
+Blood = read_csv("Blood.csv")
+
+Blood = Blood %>%
+  mutate(DonatedMarch = as_factor(DonatedMarch))
+  levels(Blood$DonatedMarch) = c("No" , "Yes")
+```
+
+```{r Task 9b: split the data}
+
+set.seed(1234)
+blood_split = initial_split(Blood, prop = .70, strata = DonatedMarch)
+train2 = training(blood_split)
+test2 = testing(blood_split)
+```
+
+```{r Task 9b: Classification Tree}
+blood_recipe = recipe(DonatedMarch ~. , train2)
+
+tree_model2 = decision_tree() %>%
+  set_engine("rpart", model=TRUE) %>%
+  set_mode("classification")
+
+blood_wflow=
+  workflow() %>%
+  add_model(tree_model2) %>%
+  add_recipe(blood_recipe)
+
+blood_fit = fit(blood_wflow, train2)
+```
+
+
+```{r Task 9b: Create Folds}
+set.seed(1234)
+folds2= vfold_cv(train2, v=5)
+
+```
+
+```{r Task9b: Tunning}
+blood_recipe2 = recipe(DonatedMarch ~., train2)
+  
+tree_model3 = decision_tree(cost_complexity = tune()) %>%
+  set_engine("rpart", model=TRUE) %>%
+  set_mode("classification")
+
+tree_grid2 = grid_regular(cost_complexity(),
+                         levels = 25)
+
+blood_wflow2 =
+  workflow() %>%
+  add_model(tree_model3) %>%
+  add_recipe(blood_recipe2)
+
+tree_res2 = 
+  blood_wflow2 %>%
+  tune_grid(
+    resamples = folds2,
+    grid = tree_grid2
+  )
+
+tree_res2
+
+```
+
+```{r task 9b: Graphically examine CP}
+tree_res2 %>%
+  collect_metrics() %>%
+  ggplot(aes(cost_complexity, mean)) +
+  geom_line(size = 1.5, alpha = .6) +
+  geom_point(size =2) +
+  facet_wrap(~ .metric, scales = "free", nrow = 2)
+```
+
+
+**right around .015 seems to be the best accuracy point, when examined graphically**
+
+```{r Task 10 : finalize the workflow}
+best_tree2 = tree_res2 %>%
+  select_best("accuracy")
+
+best_tree2
+
+final2_wf =
+  blood_wflow %>%
+  finalize_workflow(best_tree2)
+```
+
+```{r task 10: Plot the tree}
+final2_fit = fit(final2_wf, train2)
+
+tree2 = final2_fit %>%
+  pull_workflow_fit() %>%
+  pluck("fit")
+
+fancyRpartPlot(tree2, tweak = 1.5)
+
+```
+
+
+
+```{r Task 11: determine accuracy on training set}
+
+treepred = predict(final2_fit, train2, type = "class")
+head(treepred)
+
+confusionMatrix(treepred$.pred_class, train2$DonatedMarch, positive = "Yes")
+```
+
+```{r determine accuracy on testing set}
+
+treepred_test =predict(final2_fit, test2, type="class")
+confusionMatrix(treepred_test$.pred_class, test2$DonatedMarch, positive = "Yes")
+```
+
+**the training set has an accuracy of .813 and the testing test an accuracy of .7857**  

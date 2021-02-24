@@ -1,0 +1,185 @@
+---
+output:
+  word_document: default
+  html_document: default
+editor_options:
+  chunk_output_type: console
+---
+```{r}
+library(tidymodels)
+library(tidyverse)
+library(ggplot2)
+library(lubridate)
+library(dplyr)
+library(ggcorrplot)
+library(GGally)
+library(glmnet)
+```
+
+```{r}
+bike <- read_csv("bike_cleaned.csv")
+
+```
+
+```{r}
+bike = bike %>% mutate(dteday =mdy(dteday))
+bike = bike %>% mutate(season = as_factor(season))
+bike =bike %>%  mutate(mnth = as_factor(mnth)) 
+bike = bike %>% mutate(holiday = as_factor(holiday))
+bike = bike %>% mutate(weekday = as_factor(weekday))
+bike = bike %>% mutate (workingday = as_factor(workingday))
+bike = bike %>% mutate(weathersit = as_factor(weathersit))
+bike = bike %>% mutate(hr = as_factor (hr))
+
+```
+**We convert the HR into factors because we need to be able to test for correlations and it needs to be formatted in the same way as all others**
+
+```{r}
+ggcorr(bike, label = TRUE)
+ggpairs(bike, columns = c("temp","atemp","hum","windspeed", "count"))
+```
+**The Temp variable appears to be best correlated with count at .405.** 
+
+
+```{r}
+ggplot(bike,aes(x=hr,y=count))+
+  geom_boxplot()+ 
+  theme_bw() +
+  geom_jitter(alpha=.15)
+
+ggplot(bike, aes(season, count)) +
+  geom_boxplot() +
+  theme_bw()+
+  geom_jitter(alpha=.15)
+
+ggplot(bike, aes(mnth, count)) +
+  geom_boxplot() +
+  theme_bw()+
+  geom_jitter(alpha=.15)
+
+ggplot(bike, aes(holiday, count)) +
+  geom_boxplot() +
+  theme_bw()+
+  geom_jitter(alpha=.15)
+
+ggplot(bike, aes(weekday, count)) +
+  geom_boxplot() +
+  theme_bw()+
+  geom_jitter(alpha=.15)
+
+ggplot(bike, aes(workingday, count)) +
+  geom_boxplot() +
+  theme_bw()+
+  geom_jitter(alpha=.15)
+
+ggplot(bike, aes(weathersit, count)) +
+  geom_boxplot() +
+  theme_bw()+
+  geom_jitter(alpha=.15)
+```
+
+* From looking at the boxplots above, it appears that the season impacts the count of this dataset. This could be due to the fact that spring and summer are the most popular seasons for bike riders. 
+
+* Count is also impacted by month, with May - Sep being the busiest months of the year. this follows the same reasoning with the Spring and Summer being the most popular seasons
+
+* At first glance, it would appear that holiday has an affect on count, but with the geom_jitter function, we see that we simply do not have enough data for holiday vs. non-holiday, to make a comparison. 
+
+* The Workingday vs. Not Working day also appears to affect count as NotWorkingDay has a slightly higher IQR.
+
+* Weather has a huge impact on count and we can see on the boxplot that days with no precipitation have much larger IQR indicating a higher use of bikes on days with no precipitation. 
+
+ 
+```{r}
+bike_recipe <- recipe(count ~ hr, bike) %>%
+  step_dummy(hr)
+  bike_recipe
+  
+lm_model =
+  linear_reg() %>%
+  set_engine("lm")
+  
+lm_wflow =
+  workflow() %>%
+  add_model(lm_model) %>%
+  add_recipe(bike_recipe)
+
+lm_fit = (fit(lm_wflow, bike))
+```
+
+```{r}
+summary(lm_fit$fit$fit$fit)
+```
+
+**This model has a p-value of less than .05, making it significant.**
+
+```{r}
+bike_recipe2 <- recipe(count ~., bike) %>%
+  step_rm(instant, dteday, registered, casual) %>%
+  step_dummy(all_nominal()) %>%
+  step_center(all_predictors()) %>%
+  step_scale(all_predictors())
+
+ridge_model <- 
+  linear_reg(mixture=0) %>%
+  set_engine("glmnet")
+
+ridge_wflow <-
+  workflow() %>%
+  add_model(ridge_model) %>%
+  add_recipe(bike_recipe2)
+
+ridge_fit = fit(ridge_wflow, bike)
+
+```
+
+```{r}
+ridge_fit %>%
+  pull_workflow_fit() %>%
+  pluck("fit")
+```
+
+**I selected lambda value of 15 with an R square of 62.06**
+```{r}
+ridge_fit %>%
+  pull_workflow_fit() %>%
+  pluck("fit") %>%
+  coef(s=15)
+
+```
+
+
+```{r}
+bike_recipe3 <- recipe(count ~., bike) %>%
+  step_rm(instant, dteday, registered, casual) %>%
+  step_dummy(all_nominal()) %>%
+  step_center(all_predictors()) %>%
+  step_scale(all_predictors())
+
+lasso_model <- 
+  linear_reg(mixture=1) %>%
+  set_engine("glmnet")
+
+lasso_wflow <-
+  workflow() %>%
+  add_model(lasso_model) %>%
+  add_recipe(bike_recipe3)
+
+lasso_fit = fit(lasso_wflow, bike)
+```
+
+```{r}
+lasso_fit %>%
+  pull_workflow_fit() %>%
+  pluck("fit")
+```
+
+**I selected lambda value of .303 with R Square of 63.14**
+
+```{r}
+lasso_fit %>%
+  pull_workflow_fit() %>%
+  pluck("fit") %>%
+  coef(s=.303)
+```
+
+**The lasso method works better for this excercise because in this case, it removes the variable with no coefficients, displaying only the relevant variables to our model**
