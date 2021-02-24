@@ -1,0 +1,177 @@
+---
+output:
+  word_document: default
+  html_document: default
+editor_options:
+  chunk_output_type: console
+---
+```{r}
+library(tidymodels)
+library(tidyverse)
+```
+
+
+```{r}
+trucks <- read_csv("trucks.csv")
+```
+
+# Relation between distance & speeding
+```{r}
+ggplot(trucks, aes(Distance, Speeding)) +
+  geom_point()
+```
+
+**Yes, there appears to be two clusters. One one side we have drivers that drive a short distance and are less likely to speed. The other side, we have drivers whom drive longer distance and are more likely to speed.**  
+
+## Task 2: Scale and Center the data
+```{r}
+trucks_recipe = recipe (~ Distance + Speeding, trucks)
+
+trucks_dummy = trucks_recipe %>%
+  step_scale(all_numeric()) %>%
+  step_center(all_numeric())
+
+trucks_dummy = prep(trucks_dummy, trucks)
+trucks_cleaned = bake(trucks_dummy, trucks)
+```
+
+## Task 3: K-Means Clustering
+
+```{r}
+set.seed(64)
+clusts = 
+  tibble(k=2) %>%
+  mutate(
+    kclust= map(k, ~kmeans(trucks_cleaned, .x)),
+    tidied = map(kclust, tidy),
+    glanced = map(kclust, glance),
+    augmented = map(kclust, augment, trucks_cleaned)
+  )
+
+clusts
+
+```
+
+
+```{r}
+clusters = 
+  clusts %>%
+  unnest(cols = c(tidied))
+
+assignments = 
+  clusts %>%
+  unnest( cols = c(augmented))
+
+clustering = 
+  clusts %>%
+  unnest(cols= c(glanced))
+```
+
+
+```{r}
+p1 = 
+  ggplot(assignments, aes(x = Distance, y = Speeding)) +
+  geom_point(aes(color = .cluster), alpha = .8) +
+  facet_wrap(~k)
+
+p1 
+```
+
+**two clusters seem very well organized with the possible exepctions of a few drivers that are sort of in between the two.**  
+
+# Task 4
+
+```{r}
+set.seed(412)
+clusts = 
+  tibble(k=1:8) %>%
+  mutate(
+    kclust= map(k, ~kmeans(trucks_cleaned, .x)),
+    tidied = map(kclust, tidy),
+    glanced = map(kclust, glance),
+    augmented = map(kclust, augment, trucks_cleaned)
+  )
+
+clusts
+```
+
+
+```{r}
+clusters = 
+  clusts %>%
+  unnest(cols = c(tidied))
+
+assignments = 
+  clusts %>%
+  unnest( cols = c(augmented))
+
+clustering = 
+  clusts %>%
+  unnest(cols= c(glanced))
+```
+
+
+```{r}
+p2 = 
+  ggplot(assignments, aes(x = Distance, y = Speeding)) +
+  geom_point(aes(color = .cluster), alpha = .8) +
+  facet_wrap(~k)
+
+p2 
+```
+
+**For this data a cluster of 2 seems more appropriate**  
+
+
+# Task 5
+```{r}
+
+ggplot(clustering, aes(k, tot.withinss)) +
+  geom_line() +
+  geom_point() + theme_bw()
+```
+
+**K value of 4 appear to be the most appropriate since it is where the "elbow" starts to bend**  
+
+
+# Task 6
+
+```{r}
+set.seed(64)
+clusts = 
+  tibble(k=4) %>%
+  mutate(
+    kclust= map(k, ~kmeans(trucks_cleaned, .x)),
+    tidied = map(kclust, tidy),
+    glanced = map(kclust, glance),
+    augmented = map(kclust, augment, trucks_cleaned)
+  )
+
+clusts
+```
+
+```{r}
+clusters = 
+  clusts %>%
+  unnest(cols = c(tidied))
+
+assignments = 
+  clusts %>%
+  unnest( cols = c(augmented))
+
+clustering = 
+  clusts %>%
+  unnest(cols= c(glanced))
+```
+
+
+```{r}
+p3 = 
+  ggplot(assignments, aes(x = Distance, y = Speeding)) +
+  geom_point(aes(color = .cluster), alpha = .8) +
+  facet_wrap(~k)
+
+p3 
+```
+
+**This clustering of 4 seems to be the most optimal, with 4 distinct clusters seperating the data**  
