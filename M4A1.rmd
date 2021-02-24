@@ -1,0 +1,47 @@
+---
+output:
+  word_document: default
+  html_document: default
+editor_options:
+  chunk_output_type: console
+---
+
+```{r}
+library(tidyverse)
+library(VIM)
+library(mice)
+library(skimr)
+```
+
+```{r}
+grades <- read_csv("class-grades.csv")
+
+str(grades)
+summary(grades)
+skim(grades)
+```
+
+```{r}
+grades_rowdel <- grades %>%
+  drop_na()
+```
+
+```{r}
+grade_coldel <- grades%>%
+  select(-Tutorial, -Midterm, -TakeHome, -Final)
+```
+
+
+```{r}
+set.seed(123)
+imp_Final = mice(grades, m=5, method='pmm', printFlag= FALSE)
+
+summary(imp_Final)
+```
+
+```{r}
+grades_complete <- complete(imp_Final)
+
+summary(grades_complete)
+```
+
